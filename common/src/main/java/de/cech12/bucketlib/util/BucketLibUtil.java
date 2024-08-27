@@ -1,26 +1,20 @@
 package de.cech12.bucketlib.util;
 
-import de.cech12.bucketlib.api.BucketLibComponents;
 import de.cech12.bucketlib.api.BucketLibTags;
 import de.cech12.bucketlib.api.item.UniversalBucketItem;
 import de.cech12.bucketlib.mixin.LivingEntityAccessor;
 import de.cech12.bucketlib.platform.Services;
-import net.minecraft.advancements.CriteriaTriggers;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.data.registries.VanillaRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.stats.Stats;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.block.Block;
@@ -28,12 +22,13 @@ import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class BucketLibUtil {
 
-    public static final ResourceLocation MILK_LOCATION = ResourceLocation.withDefaultNamespace("milk");
+    public static final ResourceLocation MILK_LOCATION = new ResourceLocation("milk");
+
+    private static final RandomSource RANDOM = RandomSource.create();
 
     private BucketLibUtil() {}
 
@@ -72,40 +67,25 @@ public class BucketLibUtil {
     /**
      * Adds damage to the bucket if damaging is enabled.
      * @param stack item stack which gets damage
-     * @param level ServerLevel
-     * @param player Player object or null if no player is involved
+     * @param random Random object
+     * @param player ServerPlayer object or null if no player is involved
      */
-    public static void damageByOne(ItemStack stack, ServerLevel level, Player player) {
-        if (level == null) {
-            damageByOne(stack, (player instanceof ServerPlayer) ? (ServerPlayer) player : null); //workaround for contexts without level access (Crafting & fluid handlers)
-            return;
-        }
-        if (!stack.isEmpty() && stack.isDamageableItem() && !BucketLibUtil.isAffectedByInfinityEnchantment(stack)) {
-            stack.hurtAndBreak(1, level, (player instanceof ServerPlayer) ? (ServerPlayer) player : null, (item) -> {
-                stack.setDamageValue(0);
-            });
+    public static void damageByOne(ItemStack stack, RandomSource random, ServerPlayer player) {
+        if (!stack.isEmpty() && stack.isDamageableItem()
+                && !BucketLibUtil.isAffectedByInfinityEnchantment(stack)
+                && stack.hurt(1, random, player)) {
+            stack.shrink(1);
+            stack.setDamageValue(0);
         }
     }
 
     /**
-     * Adds damage to the bucket if damaging is enabled. This method should only be used if there is no ServerLevel in the calling context.
-     * Enchantments have no effect here!
-     * It is recommended to use {@link #damageByOne(ItemStack, ServerLevel, Player)}
+     * Adds damage to the bucket if damaging is enabled.
+     * If there is a player context, please use {@link #damageByOne(ItemStack, RandomSource, ServerPlayer)}
      * @param stack item stack which gets damage
      */
-    @Deprecated //TODO find a way to get server level access in all calling contexts
-    public static void damageByOne(ItemStack stack, @Nullable ServerPlayer player) {
-        if (!stack.isEmpty() && stack.isDamageableItem() && !BucketLibUtil.isAffectedByInfinityEnchantment(stack)) {
-            int newDamageValue = stack.getDamageValue() + 1;
-            if (player != null) {
-                CriteriaTriggers.ITEM_DURABILITY_CHANGED.trigger(player, stack, newDamageValue);
-            }
-            stack.setDamageValue(newDamageValue);
-            if (newDamageValue >= stack.getMaxDamage()) {
-                stack.shrink(1);
-                stack.setDamageValue(0);
-            }
-        }
+    public static void damageByOne(ItemStack stack) {
+        damageByOne(stack, RANDOM, null);
     }
 
     /**
@@ -121,43 +101,45 @@ public class BucketLibUtil {
             Fluid fluid = getFluid(itemStack);
             return fluid != Fluids.EMPTY
                     && fluid.defaultFluidState().is(BucketLibTags.Fluids.INFINITY_ENCHANTABLE)
-                    && EnchantmentHelper.getItemEnchantmentLevel(VanillaRegistries.createLookup().lookup(Registries.ENCHANTMENT).get().getOrThrow(Enchantments.INFINITY), itemStack) > 0
+                    && EnchantmentHelper.getItemEnchantmentLevel(Enchantments.INFINITY_ARROWS, itemStack) > 0
                     && bucket.canHoldFluid(fluid);
         }
         return false;
     }
 
     private static boolean containsTagContent(ItemStack itemStack, String tagName) {
-        CustomData customdata = itemStack.getOrDefault(BucketLibComponents.BUCKET_CONTENT, CustomData.EMPTY);
-        return customdata.contains(tagName);
+        CompoundTag nbt = itemStack.getTag();
+        return nbt != null && nbt.contains(tagName);
     }
 
     private static String getTagContent(ItemStack itemStack, String tagName) {
-        CustomData customdata = itemStack.getOrDefault(BucketLibComponents.BUCKET_CONTENT, CustomData.EMPTY);
-        if (customdata.contains(tagName)) {
-            return customdata.copyTag().getString(tagName);
+        CompoundTag nbt = itemStack.getTag();
+        if (nbt == null) {
+            return null;
         }
-        return null;
+        String content = nbt.getString(tagName);
+        if (content.isEmpty()) {
+            return null;
+        }
+        return content;
     }
 
     private static ItemStack setTagContent(ItemStack itemStack, String tagName, String tagContent) {
         ItemStack result = itemStack.copy();
-        CustomData customdata = result.getOrDefault(BucketLibComponents.BUCKET_CONTENT, CustomData.EMPTY);
-        CompoundTag nbt = customdata.copyTag();
+        CompoundTag nbt = result.getOrCreateTag();
         nbt.putString(tagName, tagContent);
-        result.set(BucketLibComponents.BUCKET_CONTENT, CustomData.of(nbt));
+        result.setTag(nbt);
         return result;
     }
 
     private static ItemStack removeTagContentNoCopy(ItemStack itemStack, String tagName) {
-        CustomData customdata = itemStack.getOrDefault(BucketLibComponents.BUCKET_CONTENT, CustomData.EMPTY);
-        CompoundTag nbt = customdata.copyTag();
-        if (nbt.contains(tagName)) {
+        CompoundTag nbt = itemStack.getTag();
+        if (nbt != null && nbt.contains(tagName)) {
             nbt.remove(tagName);
             if (nbt.isEmpty()) {
-                itemStack.remove(BucketLibComponents.BUCKET_CONTENT);
+                itemStack.setTag(null);
             } else {
-                itemStack.set(BucketLibComponents.BUCKET_CONTENT, CustomData.of(nbt));
+                itemStack.setTag(nbt);
             }
         }
         return itemStack;
@@ -174,7 +156,7 @@ public class BucketLibUtil {
     public static ResourceLocation getContent(ItemStack itemStack) {
         String content = getContentString(itemStack);
         if (content != null) {
-            return ResourceLocation.parse(content);
+            return new ResourceLocation(content);
         }
         return null;
     }
@@ -187,14 +169,19 @@ public class BucketLibUtil {
         return setTagContent(itemStack, "BucketContent", content.toString());
     }
 
-    public static void removeContentNoCopy(ItemStack itemStack, ServerLevel level, @Nullable Player player, boolean damage) {
-        ItemStack emptyStack = removeTagContentNoCopy(itemStack, "BucketContent");
-        if (damage) damageByOne(emptyStack, level, player);
+    public static ItemStack removeContent(ItemStack itemStack) {
+        return removeContent(itemStack, true);
     }
 
-    private static ItemStack removeContent(ItemStack itemStack, ServerLevel level, @Nullable Player player, boolean damage) {
+    public static ItemStack removeContentNoCopy(ItemStack itemStack, boolean damage) {
+        ItemStack emptyStack = removeTagContentNoCopy(itemStack, "BucketContent");
+        if (damage) damageByOne(emptyStack);
+        return emptyStack;
+    }
+
+    private static ItemStack removeContent(ItemStack itemStack, boolean damage) {
         ItemStack emptyStack = removeTagContent(itemStack, "BucketContent");
-        if (damage) damageByOne(emptyStack, level, player);
+        if (damage) damageByOne(emptyStack);
         return emptyStack;
     }
 
@@ -217,8 +204,8 @@ public class BucketLibUtil {
         return addContent(filledStack, MILK_LOCATION);
     }
 
-    public static ItemStack removeMilk(ItemStack itemStack, ServerLevel level, @Nullable Player player) {
-        return removeFluid(itemStack, level, player);
+    public static ItemStack removeMilk(ItemStack itemStack) {
+        return removeFluid(itemStack);
     }
 
     public static boolean containsFluid(ItemStack itemStack) {
@@ -233,12 +220,12 @@ public class BucketLibUtil {
         return Services.FLUID.addFluid(itemStack, fluid);
     }
 
-    public static ItemStack removeFluid(ItemStack itemStack, ServerLevel level, @Nullable Player player) {
+    public static ItemStack removeFluid(ItemStack itemStack) {
         AtomicReference<ItemStack> resultItemStack = new AtomicReference<>(itemStack.copy());
         if (containsMilk(itemStack)) {
-            resultItemStack.set(removeContent(resultItemStack.get(), level, player, !containsFluid(resultItemStack.get())));
+            resultItemStack.set(removeContent(resultItemStack.get(), !containsFluid(resultItemStack.get())));
         }
-        return Services.FLUID.removeFluid(resultItemStack.get(), level, player);
+        return Services.FLUID.removeFluid(resultItemStack.get());
     }
 
     public static boolean containsEntityType(ItemStack itemStack) {
@@ -248,7 +235,7 @@ public class BucketLibUtil {
     public static EntityType<?> getEntityType(ItemStack itemStack) {
         String content = getEntityTypeString(itemStack);
         if (content != null) {
-            return Services.REGISTRY.getEntityType(ResourceLocation.parse(content));
+            return Services.REGISTRY.getEntityType(new ResourceLocation(content));
         }
         return null;
     }
@@ -261,10 +248,9 @@ public class BucketLibUtil {
         return setTagContent(itemStack, "EntityType", Services.REGISTRY.getEntityTypeLocation(entityType).toString());
     }
 
-    public static ItemStack removeEntityType(ItemStack itemStack, ServerLevel level, @Nullable Player player, boolean damage) {
+    public static ItemStack removeEntityType(ItemStack itemStack, boolean damage) {
         ItemStack emptyStack = removeTagContent(itemStack, "EntityType");
-        emptyStack.remove(DataComponents.BUCKET_ENTITY_DATA); //remove entity data
-        if (damage) damageByOne(emptyStack, level, player);
+        if (damage) damageByOne(emptyStack);
         return emptyStack;
     }
 
@@ -290,9 +276,9 @@ public class BucketLibUtil {
         return itemStack.copy();
     }
 
-    public static ItemStack removeBlock(ItemStack itemStack, ServerLevel level, @Nullable Player player, boolean damage) {
+    public static ItemStack removeBlock(ItemStack itemStack, boolean damage) {
         if (!containsMilk(itemStack)) {
-            return removeContent(itemStack, level, player, damage);
+            return removeContent(itemStack, damage);
         }
         return itemStack.copy();
     }

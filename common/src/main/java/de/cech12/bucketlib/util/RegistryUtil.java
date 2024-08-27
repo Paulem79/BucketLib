@@ -6,7 +6,6 @@ import com.mojang.serialization.DataResult;
 import com.mojang.serialization.Decoder;
 import com.mojang.serialization.DynamicOps;
 import com.mojang.serialization.Encoder;
-import de.cech12.bucketlib.mixin.MobBucketItemAccessor;
 import de.cech12.bucketlib.platform.Services;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
@@ -31,7 +30,7 @@ public class RegistryUtil {
     }, new Decoder<>() {
         @Override
         public <T> DataResult<Pair<Fluid, T>> decode(DynamicOps<T> ops, T input) {
-            return DataResult.success(Pair.of(Services.REGISTRY.getFluid(ResourceLocation.parse(ops.getStringValue(input).getOrThrow())), ops.empty()));
+            return DataResult.success(Pair.of(Services.REGISTRY.getFluid(new ResourceLocation(ops.getStringValue(input).get().left().get())), ops.empty()));
         }
     });
 
@@ -43,7 +42,7 @@ public class RegistryUtil {
     }, new Decoder<>() {
         @Override
         public <T> DataResult<Pair<Block, T>> decode(DynamicOps<T> ops, T input) {
-            return DataResult.success(Pair.of(Services.REGISTRY.getBlock(ResourceLocation.parse(ops.getStringValue(input).getOrThrow())), ops.empty()));
+            return DataResult.success(Pair.of(Services.REGISTRY.getBlock(new ResourceLocation(ops.getStringValue(input).get().left().get())), ops.empty()));
         }
     });
 
@@ -55,7 +54,7 @@ public class RegistryUtil {
     }, new Decoder<>() {
         @Override
         public <T> DataResult<Pair<EntityType<?>, T>> decode(DynamicOps<T> ops, T input) {
-            return DataResult.success(Pair.of(Services.REGISTRY.getEntityType(ResourceLocation.parse(ops.getStringValue(input).getOrThrow())), ops.empty()));
+            return DataResult.success(Pair.of(Services.REGISTRY.getEntityType(new ResourceLocation(ops.getStringValue(input).get().left().get())), ops.empty()));
         }
     });
 
@@ -73,7 +72,7 @@ public class RegistryUtil {
                 bucketBlocks.add(new BucketBlock(bucket.getBlock(), bucket));
             }
             if (item instanceof MobBucketItem bucket) {
-                EntityType<?> entityType = ((MobBucketItemAccessor) bucket).bucketlib_getEntityType();
+                EntityType<?> entityType = Services.BUCKET.getEntityTypeOfMobBucketItem(bucket);
                 if (entityType != null && level != null && entityType.create(level) instanceof Bucketable) {
                     bucketEntities.add(new BucketEntity(entityType, Services.BUCKET.getFluidOfBucketItem(bucket), bucket));
                 }

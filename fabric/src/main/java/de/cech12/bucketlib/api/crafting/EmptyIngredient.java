@@ -1,6 +1,7 @@
 package de.cech12.bucketlib.api.crafting;
 
-import com.mojang.serialization.MapCodec;
+import com.google.gson.JsonObject;
+import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import de.cech12.bucketlib.BucketLibMod;
 import de.cech12.bucketlib.api.BucketLib;
@@ -10,13 +11,13 @@ import net.fabricmc.fabric.api.recipe.v1.ingredient.CustomIngredient;
 import net.fabricmc.fabric.api.recipe.v1.ingredient.CustomIngredientSerializer;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -96,21 +97,16 @@ public class EmptyIngredient implements CustomIngredient {
         return Serializer.INSTANCE;
     }
 
+    public static final Codec<EmptyIngredient> CODEC = RecordCodecBuilder.create(builder ->
+            builder.group(
+                    ResourceLocation.CODEC.optionalFieldOf("item").forGetter(i -> Optional.of(BuiltInRegistries.ITEM.getKey(i.item))),
+                    TagKey.codec(BuiltInRegistries.ITEM.key()).optionalFieldOf("tag").forGetter(i -> Optional.ofNullable(i.tag))
+            ).apply(builder, EmptyIngredient::new)
+    );
+
     public static final class Serializer implements CustomIngredientSerializer<EmptyIngredient> {
-
         public static final Serializer INSTANCE = new Serializer();
-        public static final ResourceLocation NAME = BucketLib.id("empty");
-
-        private static final MapCodec<EmptyIngredient> CODEC = RecordCodecBuilder.mapCodec(builder ->
-                builder.group(
-                        ResourceLocation.CODEC.optionalFieldOf("item").forGetter(i -> Optional.of(BuiltInRegistries.ITEM.getKey(i.item))),
-                        TagKey.codec(BuiltInRegistries.ITEM.key()).optionalFieldOf("tag").forGetter(i -> Optional.ofNullable(i.tag))
-                ).apply(builder, EmptyIngredient::new)
-        );
-
-        private static final StreamCodec<RegistryFriendlyByteBuf, EmptyIngredient> PACKET_CODEC = StreamCodec.of(
-                EmptyIngredient.Serializer::write,
-                EmptyIngredient.Serializer::read);
+        public static final ResourceLocation NAME = new ResourceLocation(BucketLib.MOD_ID, "empty");
 
         private Serializer() {}
 
@@ -120,32 +116,49 @@ public class EmptyIngredient implements CustomIngredient {
         }
 
         @Override
-        public MapCodec<EmptyIngredient> getCodec(boolean allowEmpty) {
-            return CODEC;
+        public EmptyIngredient read(JsonObject json) {
+            String item = json.get("item").getAsString();
+            String tagId = json.get("tagId").getAsString();
+            if (!tagId.isEmpty()) {
+                TagKey<Item> tag = TagKey.create(Registries.ITEM, new ResourceLocation(tagId));
+                return new EmptyIngredient(tag);
+            }
+            if (item.isEmpty()) {
+                throw new IllegalArgumentException("Cannot create a item ingredient with no item or tag.");
+            }
+
+            return new EmptyIngredient(BuiltInRegistries.ITEM.get(new ResourceLocation(item)));
         }
 
         @Override
-        public StreamCodec<RegistryFriendlyByteBuf, EmptyIngredient> getPacketCodec() {
-            return PACKET_CODEC;
+        public void write(JsonObject json, EmptyIngredient ingredient) {
+            json.addProperty("item", ingredient.item != null ? Objects.requireNonNull(BuiltInRegistries.ITEM.getKey(ingredient.item)).toString() : "");
+            json.addProperty("tagId", ingredient.tag != null ? ingredient.tag.location().toString() : "");
         }
 
         @Nonnull
-        private static EmptyIngredient read(RegistryFriendlyByteBuf buffer) {
+        @Override
+        public EmptyIngredient read(FriendlyByteBuf buffer) {
             String item = buffer.readUtf();
             String tagId = buffer.readUtf();
             if (!item.isEmpty()) {
-                return new EmptyIngredient(BuiltInRegistries.ITEM.get(ResourceLocation.parse(item)));
+                return new EmptyIngredient(BuiltInRegistries.ITEM.get(new ResourceLocation(item)));
             }
             if (!tagId.isEmpty()) {
-                TagKey<Item> tag = TagKey.create(Registries.ITEM, ResourceLocation.parse(tagId));
+                TagKey<Item> tag = TagKey.create(Registries.ITEM, new ResourceLocation(tagId));
                 return new EmptyIngredient(tag);
             }
             return new EmptyIngredient();
         }
 
-        private static void write(@Nonnull RegistryFriendlyByteBuf buffer, @Nonnull EmptyIngredient ingredient) {
+        @Override
+        public void write(@Nonnull FriendlyByteBuf buffer, @Nonnull EmptyIngredient ingredient) {
             buffer.writeUtf(ingredient.item != null ? Objects.requireNonNull(BuiltInRegistries.ITEM.getKey(ingredient.item)).toString() : "");
             buffer.writeUtf(ingredient.tag != null ? ingredient.tag.location().toString() : "");
+        }
+
+        public Codec<EmptyIngredient> getCodec(boolean allowEmpty) {
+            return CODEC;
         }
     }
 

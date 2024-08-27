@@ -1,46 +1,47 @@
 package de.cech12.bucketlib.item.crafting;
 
-import com.mojang.serialization.Codec;
-import com.mojang.serialization.MapCodec;
-import com.mojang.serialization.codecs.RecordCodecBuilder;
+import com.google.gson.JsonObject;
 import de.cech12.bucketlib.api.item.UniversalBucketItem;
 import de.cech12.bucketlib.platform.Services;
 import de.cech12.bucketlib.util.BucketLibUtil;
-import de.cech12.bucketlib.util.RegistryUtil;
-import net.minecraft.core.HolderLookup;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.core.NonNullList;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.inventory.CraftingContainer;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.crafting.CraftingBookCategory;
-import net.minecraft.world.item.crafting.CraftingInput;
-import net.minecraft.world.item.crafting.RecipeSerializer;
-import net.minecraft.world.item.crafting.ShapedRecipe;
-import net.minecraft.world.item.crafting.ShapedRecipePattern;
+import net.minecraft.world.item.crafting.*;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
+import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 
 public class BucketFillingShapedRecipe extends ShapedRecipe {
 
     private final CraftingBookCategory category;
-    private final ShapedRecipePattern pattern;
+    private final NonNullList<Ingredient> ingredients;
     private final BucketFillingType fillingType;
     private final Fluid fluid;
     private final Block block;
     private final EntityType<?> entityType;
 
-    public BucketFillingShapedRecipe(String group, CraftingBookCategory category, ShapedRecipePattern pattern, BucketFillingType fillingType, Optional<Fluid> fluid, Optional<Block> block, Optional<EntityType<?>> entityType) {
-        super(group, category, pattern, getAssembledBucket(fillingType, fluid.orElse(null), block.orElse(null), entityType.orElse(null), pattern.ingredients().stream().map(ingredient -> Arrays.stream(ingredient.getItems()).toList()).flatMap(List::stream).toList()));
+    public BucketFillingShapedRecipe(ResourceLocation location, String group, CraftingBookCategory category, NonNullList<Ingredient> ingredients, BucketFillingType fillingType, Optional<Fluid> fluid, Optional<Block> block, Optional<EntityType<?>> entityType) {
+        super(location, group, category, 3, 3, ingredients,
+                getAssembledBucket(fillingType, fluid.orElse(null), block.orElse(null), entityType.orElse(null),
+                        ingredients
+                                .stream()
+                                .map(ingredient -> Arrays.stream(ingredient.getItems())
+                                        .toList())
+                                .flatMap(List::stream)
+                                .toList()
+                ));
         this.category = category;
-        this.pattern = pattern;
+        this.ingredients = ingredients;
         this.fillingType = fillingType;
         this.fluid = fluid.orElse(null);
         this.block = block.orElse(null);
@@ -81,13 +82,13 @@ public class BucketFillingShapedRecipe extends ShapedRecipe {
      * Used to check if a recipe matches current crafting inventory
      */
     @Override
-    public boolean matches(@Nonnull CraftingInput input, @Nonnull Level level) {
-        ItemStack bucket = getAffectedBucket(input.items());
+    public boolean matches(@Nonnull CraftingContainer inv, @Nonnull Level level) {
+        ItemStack bucket = getAffectedBucket(inv.getItems());
         if (bucket == ItemStack.EMPTY) {
             return false;
         }
         UniversalBucketItem universalBucketItem = ((UniversalBucketItem)bucket.getItem());
-        return super.matches(input, level)
+        return super.matches(inv, level)
                 && (this.fillingType != BucketFillingType.BLOCK || universalBucketItem.canHoldBlock(this.block))
                 && (this.fillingType != BucketFillingType.ENTITY || (universalBucketItem.canHoldEntity(this.entityType) && (this.fluid == null || universalBucketItem.canHoldFluid(this.fluid))))
                 && (this.fillingType != BucketFillingType.FLUID || universalBucketItem.canHoldFluid(this.fluid))
@@ -99,8 +100,8 @@ public class BucketFillingShapedRecipe extends ShapedRecipe {
      */
     @Override
     @Nonnull
-    public ItemStack assemble(@Nonnull CraftingInput input, @Nonnull HolderLookup.Provider provider) {
-        return getAssembledBucket(this.fillingType, this.fluid, this.block, this.entityType, input.items());
+    public ItemStack assemble(@Nonnull CraftingContainer inv, @Nonnull RegistryAccess registryAccess) {
+        return getAssembledBucket(this.fillingType, this.fluid, this.block, this.entityType, inv.getItems());
     }
 
 
@@ -114,42 +115,23 @@ public class BucketFillingShapedRecipe extends ShapedRecipe {
 
         public static final Serializer INSTANCE = new Serializer();
 
-        private static final MapCodec<BucketFillingShapedRecipe> CODEC = RecordCodecBuilder.mapCodec((record) ->
-                record.group(
-                        Codec.STRING.optionalFieldOf("group", "").forGetter(ShapedRecipe::getGroup),
-                        CraftingBookCategory.CODEC.fieldOf("category").orElse(CraftingBookCategory.MISC).forGetter((recipe) -> recipe.category),
-                        ShapedRecipePattern.MAP_CODEC.forGetter((recipe) -> recipe.pattern),
-                        BucketFillingType.CODEC.fieldOf("filling_type").forGetter((recipe) -> recipe.fillingType),
-                        RegistryUtil.FLUID_CODEC.optionalFieldOf("fluid").forGetter(recipe -> Optional.of(recipe.fluid)),
-                        RegistryUtil.BLOCK_CODEC.optionalFieldOf("block").forGetter(recipe -> Optional.of(recipe.block)),
-                        RegistryUtil.ENTITY_TYPE_CODEC.optionalFieldOf("entity").forGetter(recipe -> Optional.of(recipe.entityType))
-                ).apply(record, BucketFillingShapedRecipe::new));
-
-        private static final StreamCodec<RegistryFriendlyByteBuf, BucketFillingShapedRecipe> STREAM_CODEC = StreamCodec.of(
-                BucketFillingShapedRecipe.Serializer::toNetwork,
-                BucketFillingShapedRecipe.Serializer::fromNetwork);
-
         public Serializer() {
         }
 
         @Override
-        @Nonnull
-        public MapCodec<BucketFillingShapedRecipe> codec() {
-            return CODEC;
+        public BucketFillingShapedRecipe fromJson(ResourceLocation resourceLocation, JsonObject jsonObject) {
+            return null;
         }
 
         @Override
         @Nonnull
-        public StreamCodec<RegistryFriendlyByteBuf, BucketFillingShapedRecipe> streamCodec() {
-            return STREAM_CODEC;
-        }
-
-        @Nonnull
-        private static BucketFillingShapedRecipe fromNetwork(RegistryFriendlyByteBuf buf) {
-            String group = buf.readUtf();
-            CraftingBookCategory category = buf.readEnum(CraftingBookCategory.class);
-            ShapedRecipePattern pattern = ShapedRecipePattern.STREAM_CODEC.decode(buf);
+        public BucketFillingShapedRecipe fromNetwork(@NotNull ResourceLocation resourceLocation, FriendlyByteBuf buf) {
+            int $$2 = buf.readVarInt();
+            int $$3 = buf.readVarInt();
             BucketFillingType fillingType = BucketFillingType.valueOf(buf.readUtf());
+            String $$4 = buf.readUtf();
+            CraftingBookCategory $$5 = buf.readEnum(CraftingBookCategory.class);
+            NonNullList<Ingredient> $$6 = NonNullList.withSize($$2 * $$3, Ingredient.EMPTY);
             Optional<Fluid> fluid = Optional.empty();
             Optional<Block> block = Optional.empty();
             Optional<EntityType<?>> entityType = Optional.empty();
@@ -164,13 +146,19 @@ public class BucketFillingShapedRecipe extends ShapedRecipe {
             } else if (fillingType == BucketFillingType.FLUID) {
                 fluid = Optional.of(Services.REGISTRY.getFluid(buf.readResourceLocation()));
             }
-            return new BucketFillingShapedRecipe(group, category, pattern, fillingType, fluid, block, entityType);
+
+            $$6.replaceAll(ignored -> Ingredient.fromNetwork(buf));
+
+            return new BucketFillingShapedRecipe(resourceLocation, $$4, $$5, $$6, fillingType, fluid, block, entityType);
         }
 
-        private static void toNetwork(RegistryFriendlyByteBuf buf, BucketFillingShapedRecipe recipe) {
+        @Override
+        public void toNetwork(FriendlyByteBuf buf, BucketFillingShapedRecipe recipe) {
             buf.writeUtf(recipe.getGroup());
             buf.writeEnum(recipe.category);
-            ShapedRecipePattern.STREAM_CODEC.encode(buf, recipe.pattern);
+            for (Ingredient $$2 : recipe.ingredients) {
+                $$2.toNetwork(buf);
+            }
             buf.writeEnum(recipe.fillingType);
             if (recipe.fillingType == BucketFillingType.BLOCK) {
                 buf.writeResourceLocation(Objects.requireNonNull(Services.REGISTRY.getBlockLocation(recipe.block)));

@@ -3,75 +3,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Forge Recommended Versioning](https://mcforge.readthedocs.io/en/latest/conventions/versioning/).
 
-## [1.21-4.1.0.0] - 2024-07-14
-### Changed
-- updated NeoForge to 21.0.94-beta
-- the `config` directory is used for the default configuration (NeoForge)
-
-### Fixed
-- crashed on startup with NeoForge (caused by a breaking change in 21.0.82-beta)
-
-## [1.21-4.0.0.6] - 2024-07-06
+## [1.20.4-3.2.1.3] - 2024-08-03
 ### Fixed
 - fixed some issues with the FluidStorage interaction to be more compatible with other mods (Fabric/Quilt)
-
-## [1.21-4.0.0.5] - 2024-07-02
-### Fixed
 - empty buckets disappeared after right-clicking a filled cauldron (Fabric) (thanks to ColinBashful for the report) #42
-
-## [1.21-4.0.0.4] - 2024-07-01
-### Fixed
 - modded fluids (Dehydration) disappeared when right-clicked with an empty BucketLib bucket (Fabric) (thanks to ColinBashful for the report) https://github.com/cech12/WoodenBucket/issues/20
 
-## [1.21-4.0.0.3] - 2024-06-24
+## [1.20.4-3.2.1.2] - 2024-06-24
 ### Fixed
 - optimized bucket item model rendering to avoid lags in screens like JEI or EMI (thanks to truskawex for the report) https://github.com/cech12/WoodenBucket/issues/19
 
-## [1.21-4.0.0.2] - 2024-06-22
+## [1.20.4-3.2.1.1] - 2024-06-22
 ### Fixed
 - Water logged blocks were replaced when right-clicked with a custom water bucket (Fabric/Quilt) (thanks to Janbsh for the report) #41
-
-## [1.21-4.0.0.1] - 2024-06-20
-### Fixed
-- damage bars of buckets were broken (Neoforge)
-- data pack directories were not correct (all loaders)
-
-## [1.21-4.0.0.0] - 2024-06-20
-### Changed
-- Updated to Minecraft 1.21 (Fabric 0.100.3+1.21, Neoforge 21.0.20-beta)
-- (Forge support is still not available until the capability system is re-added)
-- Updated Cloth Config support (15.0.127) (Fabric/Quilt)
-- Updated ModMenu support (11.0.0) (Fabric/Quilt)
-- Updated JEI support (19.0.0.9) (all loaders)
-- Updated REI support (16.0.729) (Neoforge, Fabric/Quilt)
-- Changed bucket registration for Neoforge: must be called during RegisterCapabilitiesEvent (already done in 1.20.6)
-
-## [1.20.6-3.3.0.3] - 2024-06-19
-### Fixed
-- Entity buckets were missing in creative menu (Neoforge)
-- Dispenser replaced multiple stacked buckets with only one filled bucket (Fabric/Quilt)
-
-## [1.20.6-3.3.0.2] - 2024-06-19
-### Fixed
-- Data components were not registered correctly (Neoforge)
-- Tags were not listed in language file (Fabric/Quilt, Neoforge)
-
-## [1.20.6-3.3.0.1] - 2024-06-19
-### Fixed
-- JitPack failed to build
-
-## [1.20.6-3.3.0.0] - 2024-06-18
-### Changed
-- Updated to Minecraft 1.20.6 (Fabric 0.98.0+1.20.6, Neoforge 20.6.119)
-- Removed Forge support until the capability system is re-added
-- Updated Cloth Config support (14.0.126) (Fabric/Quilt)
-- Updated ModMenu support (10.0.0-beta.1) (Fabric/Quilt)
-- Updated JEI support (18.0.0.62) (all loaders)
-- Updated REI support (15.0.728) (Neoforge, Fabric/Quilt)
-- Changed bucket registration for Neoforge: must be called during RegisterCapabilitiesEvent
-
-### Fixed
-- fixed known issue: max stack size was not taken into account and defaulted to 1 (Fabric)
 
 ## [1.20.4-3.2.1.0] - 2024-06-04
 ### Added

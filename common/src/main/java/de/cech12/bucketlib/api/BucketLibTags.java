@@ -1,6 +1,7 @@
 package de.cech12.bucketlib.api;
 
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.material.Fluid;
@@ -25,7 +26,7 @@ public class BucketLibTags {
         }
 
         private static TagKey<EntityType<?>> tag(@Nonnull String name) {
-            return TagKey.create(Registries.ENTITY_TYPE, BucketLib.id(name));
+            return TagKey.create(Registries.ENTITY_TYPE, new ResourceLocation(BucketLib.MOD_ID, name));
         }
 
     }
@@ -38,7 +39,7 @@ public class BucketLibTags {
         }
 
         private static TagKey<Fluid> tag(@Nonnull String name) {
-            return TagKey.create(Registries.FLUID, BucketLib.id(name));
+            return TagKey.create(Registries.FLUID, new ResourceLocation(BucketLib.MOD_ID, name));
         }
 
     }

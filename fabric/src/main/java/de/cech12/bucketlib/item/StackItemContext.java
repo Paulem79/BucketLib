@@ -23,7 +23,7 @@ public class StackItemContext implements ContainerItemContext {
 
         @Override
         protected long getCapacity(ItemVariant variant) {
-            return variant.getItem().getDefaultMaxStackSize();
+            return variant.getItem().getMaxStackSize();
         }
 
         @Override

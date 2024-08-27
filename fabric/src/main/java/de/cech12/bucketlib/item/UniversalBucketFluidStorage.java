@@ -1,6 +1,5 @@
 package de.cech12.bucketlib.item;
 
-import de.cech12.bucketlib.BucketLibMod;
 import de.cech12.bucketlib.api.item.UniversalBucketItem;
 import de.cech12.bucketlib.util.BucketLibUtil;
 import net.fabricmc.fabric.api.transfer.v1.context.ContainerItemContext;
@@ -10,9 +9,8 @@ import net.fabricmc.fabric.api.transfer.v1.fluid.base.SingleFluidStorage;
 import net.fabricmc.fabric.api.transfer.v1.item.ItemVariant;
 import net.fabricmc.fabric.api.transfer.v1.storage.StoragePreconditions;
 import net.fabricmc.fabric.api.transfer.v1.transaction.TransactionContext;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
-
-import java.util.Optional;
 
 public class UniversalBucketFluidStorage extends SingleFluidStorage {
 
@@ -20,14 +18,8 @@ public class UniversalBucketFluidStorage extends SingleFluidStorage {
 
     public UniversalBucketFluidStorage(ContainerItemContext context) {
         this.context = context;
-        Optional<? extends FluidStorageData> optional = context.getItemVariant().getComponents().get(BucketLibMod.STORAGE);
-        if (optional != null) {
-            optional.ifPresent(data -> {
-                if (!data.isEmpty()) {
-                    this.variant = data.fluidVariant();
-                    this.amount = data.amount();
-                }
-            });
+        if (context.getItemVariant().hasNbt()) {
+            readNbt(context.getItemVariant().getNbt());
         }
     }
 
@@ -55,7 +47,10 @@ public class UniversalBucketFluidStorage extends SingleFluidStorage {
         StoragePreconditions.notBlankNotNegative(insertedVariant, maxAmount);
         if (maxAmount >= getCapacity() && (insertedVariant.equals(variant) || variant.isBlank()) && canInsert(insertedVariant)) {
             ItemStack stack = context.getItemVariant().toStack();
-            stack.set(BucketLibMod.STORAGE, new FluidStorageData(insertedVariant, getCapacity()));
+            CompoundTag tag = stack.getOrCreateTag();
+            tag.put("variant", insertedVariant.toNbt());
+            tag.putLong("amount", getCapacity());
+            stack.setTag(tag);
             if (exchangeOrRemove(ItemVariant.of(stack), transaction)) {
                 return getCapacity();
             }
@@ -71,10 +66,13 @@ public class UniversalBucketFluidStorage extends SingleFluidStorage {
             if (stack.getItem() instanceof UniversalBucketItem bucketItem) {
                 if (!bucketItem.isCracked(stack)) {
                     if (BucketLibUtil.containsContent(stack)) { //remove milk content tag
-                        BucketLibUtil.removeContentNoCopy(stack, null, null, false);
+                        BucketLibUtil.removeContentNoCopy(stack, false);
                     }
-                    stack.remove(BucketLibMod.STORAGE);
-                    BucketLibUtil.damageByOne(stack, null); //TODO get ServerLevel!
+                    CompoundTag tag = stack.getOrCreateTag();
+                    tag.remove("variant");
+                    tag.remove("amount");
+                    stack.setTag(tag);
+                    BucketLibUtil.damageByOne(stack);
                 } else {
                     stack.shrink(1);
                 }

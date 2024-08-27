@@ -1,9 +1,7 @@
 package de.cech12.bucketlib.platform;
 
-import de.cech12.bucketlib.BucketLibMod;
 import de.cech12.bucketlib.api.BucketLib;
 import de.cech12.bucketlib.api.item.UniversalBucketItem;
-import de.cech12.bucketlib.item.FluidStorageData;
 import de.cech12.bucketlib.item.StackItemContext;
 import de.cech12.bucketlib.item.UniversalBucketFluidStorage;
 import de.cech12.bucketlib.platform.services.IFluidHelper;
@@ -20,12 +18,10 @@ import net.fabricmc.fabric.api.transfer.v1.storage.StorageView;
 import net.fabricmc.fabric.api.transfer.v1.transaction.Transaction;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.dispenser.BlockSource;
-import net.minecraft.core.dispenser.DefaultDispenseItemBehavior;
+import net.minecraft.core.BlockSource;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
@@ -74,21 +70,13 @@ public class FabricFluidHelper implements IFluidHelper {
 
     @Override
     public ItemStack dispenseFluidContainer(BlockSource source, ItemStack stack) {
-        Level level = source.level();
-        Direction dispenserFacing = source.state().getValue(DispenserBlock.FACING);
-        BlockPos pos = source.pos().relative(dispenserFacing);
+        Level level = source.getLevel();
+        Direction dispenserFacing = source.getBlockState().getValue(DispenserBlock.FACING);
+        BlockPos pos = source.getPos().relative(dispenserFacing);
         if (BucketLibUtil.isEmpty(stack)) {
             Tuple<Boolean, ItemStack> result = tryPickUpFluid(stack, null, level, null, pos, dispenserFacing);
             if (result.getA()) {
-                if (stack.getCount() == 1) {
-                    return result.getB();
-                }
-                if (!(source.blockEntity()).insertItem(result.getB()).isEmpty()) {
-                    new DefaultDispenseItemBehavior().dispense(source, result.getB());
-                }
-                ItemStack stackCopy = stack.copy();
-                stackCopy.shrink(1);
-                return stackCopy;
+                return result.getB();
             }
         } else {
             Tuple<Boolean, ItemStack> result = tryPlaceFluid(stack, null, level, null, pos);
@@ -103,8 +91,8 @@ public class FabricFluidHelper implements IFluidHelper {
     public Fluid getContainedFluid(ItemStack stack) {
         ContainerItemContext context = new StackItemContext(stack);
         Storage<FluidVariant> storage = context.find(FluidStorage.ITEM);
-        if (storage != null) {
-            for (StorageView<FluidVariant> view : storage.nonEmptyViews()) {
+        if (storage instanceof UniversalBucketFluidStorage bucketFluidStorage) {
+            for (StorageView<FluidVariant> view : bucketFluidStorage.nonEmptyViews()) {
                 return view.getResource().getFluid();
             }
         }
@@ -121,17 +109,13 @@ public class FabricFluidHelper implements IFluidHelper {
                     transaction.commit();
                 }
             }
-            ItemStack resultStack = context.getItemVariant().toStack();
-            if (!resultStack.isEmpty()) {
-                resultStack.set(BucketLibMod.STORAGE, new FluidStorageData(FluidVariant.of(fluid), FluidConstants.BUCKET));
-            }
-            return resultStack;
+            return context.getItemVariant().toStack();
         }
         return stack.copy();
     }
 
     @Override
-    public ItemStack removeFluid(ItemStack stack, ServerLevel level, @Nullable Player player) {
+    public ItemStack removeFluid(ItemStack stack) {
         ContainerItemContext context = new StackItemContext(stack);
         Storage<FluidVariant> storage = context.find(FluidStorage.ITEM);
         if (storage instanceof UniversalBucketFluidStorage bucketFluidStorage) {
@@ -141,11 +125,7 @@ public class FabricFluidHelper implements IFluidHelper {
                 }
                 transaction.commit();
             }
-            ItemStack resultStack = context.getItemVariant().toStack();
-            if (!resultStack.isEmpty()) {
-                resultStack.remove(BucketLibMod.STORAGE);
-            }
-            return resultStack;
+            return context.getItemVariant().toStack();
         }
         return stack.copy();
     }
@@ -161,7 +141,7 @@ public class FabricFluidHelper implements IFluidHelper {
         BlockState state = level.getBlockState(pos);
         Block block = state.getBlock();
         if (block instanceof BucketPickup bucketPickup && RegistryUtil.getBucketBlock(block) == null) {
-            ItemStack fullVanillaBucket = bucketPickup.pickupBlock(player, level, pos, state);
+            ItemStack fullVanillaBucket = bucketPickup.pickupBlock(level, pos, state);
             if (fullVanillaBucket.getItem() instanceof BucketItem bucketItem) {
                 Fluid fluid = Services.BUCKET.getFluidOfBucketItem(bucketItem);
                 if (stack.getItem() instanceof UniversalBucketItem universalBucketItem && universalBucketItem.canHoldFluid(fluid)) {
@@ -199,7 +179,6 @@ public class FabricFluidHelper implements IFluidHelper {
             return new Tuple<>(true, player.getItemInHand(interactionHand).copy());
         }
         Fluid fluid = BucketLibUtil.getFluid(stack);
-        ServerLevel serverLevel = (level instanceof ServerLevel) ? (ServerLevel) level : null;
         //vaporize
         if (level.dimensionType().ultraWarm() && fluid.is(FluidTags.WATER)) {
             int x = pos.getX();
@@ -209,21 +188,21 @@ public class FabricFluidHelper implements IFluidHelper {
             for (int i = 0; i < 8; ++i) {
                 level.addParticle(ParticleTypes.LARGE_SMOKE, (double) x + Math.random(), (double) y + Math.random(), (double) z + Math.random(), 0.0, 0.0, 0.0);
             }
-            return new Tuple<>(true, BucketLibUtil.removeFluid(stack, serverLevel, player));
+            return new Tuple<>(true, BucketLibUtil.removeFluid(stack));
         }
         //waterlogged Block interaction
         BlockState state = level.getBlockState(pos);
         Block block = state.getBlock();
-        if (block instanceof LiquidBlockContainer liquidBlockContainer && liquidBlockContainer.canPlaceLiquid(player, level, pos, state, fluid)) {
+        if (block instanceof LiquidBlockContainer liquidBlockContainer && liquidBlockContainer.canPlaceLiquid(level, pos, state, fluid)) {
             liquidBlockContainer.placeLiquid(level, pos, state, fluid.defaultFluidState());
             level.playSound(player, pos, FluidVariantAttributes.getEmptySound(FluidVariant.of(fluid)), SoundSource.BLOCKS, 1.0F, 1.0F);
-            return new Tuple<>(true, BucketLibUtil.removeFluid(stack, serverLevel, player));
+            return new Tuple<>(true, BucketLibUtil.removeFluid(stack));
         }
         //air / replaceable block interaction
         if (state.isAir() || state.canBeReplaced(fluid) || (!state.getFluidState().isEmpty() && !(block instanceof LiquidBlockContainer))) {
             if (level.setBlock(pos, fluid.defaultFluidState().createLegacyBlock(), 11) || state.getFluidState().isSource()) {
                 level.playSound(player, pos, FluidVariantAttributes.getEmptySound(FluidVariant.of(fluid)), SoundSource.BLOCKS, 1.0F, 1.0F);
-                return new Tuple<>(true, BucketLibUtil.removeFluid(stack, serverLevel, player));
+                return new Tuple<>(true, BucketLibUtil.removeFluid(stack));
             }
         }
         return new Tuple<>(false, stack);

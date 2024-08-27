@@ -1,14 +1,10 @@
 package de.cech12.bucketlib.api.item;
 
 import de.cech12.bucketlib.platform.Services;
-import de.cech12.bucketlib.util.BucketLibUtil;
-import de.cech12.bucketlib.util.ItemStackUtil;
-import de.cech12.bucketlib.util.RegistryUtil;
-import de.cech12.bucketlib.util.WorldInteractionUtil;
+import de.cech12.bucketlib.util.*;
 import net.minecraft.advancements.CriteriaTriggers;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -16,16 +12,18 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.stats.Stats;
 import net.minecraft.tags.EntityTypeTags;
 import net.minecraft.tags.TagKey;
-import net.minecraft.util.FastColor;
 import net.minecraft.util.Tuple;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.AgeableMob;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.animal.Bucketable;
+import net.minecraft.world.entity.animal.axolotl.Axolotl;
+import net.minecraft.world.entity.animal.axolotl.AxolotlAi;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BucketItem;
 import net.minecraft.world.item.CreativeModeTab;
@@ -34,8 +32,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemUtils;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.MilkBucketItem;
+import net.minecraft.world.item.MobBucketItem;
 import net.minecraft.world.item.UseAnim;
-import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
@@ -153,7 +151,7 @@ public class UniversalBucketItem extends Item {
         return false;
     }
 
-    //@Override //overrides the neoforge implementation //used by mixin
+    //@Override //overrides the (neo)forge implementation //TODO Fabric - no possibility found to get stack related maxstacksize...
     public int getMaxStackSize(ItemStack stack) {
         return BucketLibUtil.isEmpty(stack) ? this.properties.maxStackSize : 1;
     }
@@ -163,9 +161,9 @@ public class UniversalBucketItem extends Item {
         if (!level.isClientSide) {
             if (!entity.fireImmune() && this.hasBurningContent(itemStack)) {
                 entity.setTicksFrozen(0); //avoid extinguish sounds
-                entity.setRemainingFireTicks(100);
+                entity.setSecondsOnFire(5);
                 if (BucketLibUtil.notCreative(entity) && entity.tickCount % 20 == 0) {
-                    BucketLibUtil.damageByOne(itemStack, (ServerLevel) level, (entity instanceof Player) ? (Player) entity : null);
+                    BucketLibUtil.damageByOne(itemStack);
                 }
             } else if (!entity.isOnFire() && entity.canFreeze() && this.hasFreezingContent(itemStack)) {
                 int ticks = entity.getTicksFrozen() + (entity.isInPowderSnow ? 1 : 3); //2 are subtracted when not in powder snow
@@ -173,7 +171,7 @@ public class UniversalBucketItem extends Item {
                 //damaging here because, the vanilla mechanic is reducing the freeze ticks below fully freezing
                 if (BucketLibUtil.notCreative(entity) && entity.tickCount % 40 == 0 && entity.isFullyFrozen()) {
                     entity.hurt(level.damageSources().freeze(), entity.getType().is(EntityTypeTags.FREEZE_HURTS_EXTRA_TYPES) ? 5 : 1);
-                    BucketLibUtil.damageByOne(itemStack, (ServerLevel) level, (entity instanceof Player) ? (Player) entity : null);
+                    BucketLibUtil.damageByOne(itemStack);
                 }
             }
         }
@@ -205,14 +203,13 @@ public class UniversalBucketItem extends Item {
             BlockState hitBlockState = level.getBlockState(hitBlockPos);
             Direction hitDirection = blockHitResult.getDirection();
             BlockPos relativeBlockPos = hitBlockPos.relative(hitDirection);
-            ServerLevel serverLevel = (level instanceof ServerLevel) ? (ServerLevel) level : null;
             if (isEmpty) {
                 //pickup from cauldron interaction
                 InteractionResultHolder<ItemStack> caldronInteractionResult = WorldInteractionUtil.tryPickupFromCauldron(level, player, interactionHand, blockHitResult);
                 if (caldronInteractionResult.getResult().consumesAction()) {
                     return caldronInteractionResult;
                 }
-                Tuple<Boolean, ItemStack> result = Services.FLUID.tryPickUpFluid(BucketLibUtil.removeEntityType(itemstack, serverLevel, player, false), player, level, interactionHand, hitBlockPos, hitDirection);
+                Tuple<Boolean, ItemStack> result = Services.FLUID.tryPickUpFluid(BucketLibUtil.removeEntityType(itemstack, false), player, level, interactionHand, hitBlockPos, hitDirection);
                 if (result.getA()) {
                     return InteractionResultHolder.sidedSuccess(ItemUtils.createFilledResult(itemstack, player, result.getB()), level.isClientSide());
                 }
@@ -238,7 +235,7 @@ public class UniversalBucketItem extends Item {
                     //try to place fluid at hit block and then at the relative block
                     for (BlockPos pos : Arrays.asList(hitBlockPos, relativeBlockPos)) {
                         //remove entity to be able to use tryPlaceFluid method
-                        Tuple<Boolean, ItemStack> result = Services.FLUID.tryPlaceFluid(BucketLibUtil.removeEntityType(itemstack, serverLevel, player, false), player, level, interactionHand, pos);
+                        Tuple<Boolean, ItemStack> result = Services.FLUID.tryPlaceFluid(BucketLibUtil.removeEntityType(itemstack, false), player, level, interactionHand, pos);
                         if (result.getA()) {
                             if (BucketLibUtil.containsEntityType(itemstack)) {
                                 //place entity if exists
@@ -262,7 +259,7 @@ public class UniversalBucketItem extends Item {
                         InteractionResult interactionResult = fakeStack.useOn(new UseOnContext(player, interactionHand, blockHitResult));
                         player.setItemInHand(interactionHand, itemstack);
                         if (interactionResult.consumesAction()) {
-                            return new InteractionResultHolder<>(interactionResult, BucketLibUtil.createEmptyResult(itemstack, player, BucketLibUtil.removeBlock(itemstack, serverLevel, player, true), interactionHand));
+                            return new InteractionResultHolder<>(interactionResult, BucketLibUtil.createEmptyResult(itemstack, player, BucketLibUtil.removeBlock(itemstack, true), interactionHand));
                         }
                     }
                 }
@@ -280,14 +277,13 @@ public class UniversalBucketItem extends Item {
             if (entityType != null) {
                 Entity entity = entityType.spawn(serverLevel, itemStack, null, pos, MobSpawnType.BUCKET, true, false);
                 if (entity instanceof Bucketable bucketable) {
-                    CustomData customdata = itemStack.getOrDefault(DataComponents.BUCKET_ENTITY_DATA, CustomData.EMPTY);
-                    bucketable.loadFromBucketTag(customdata.copyTag());
+                    bucketable.loadFromBucketTag(itemStack.getOrCreateTag());
                     bucketable.setFromBucket(true);
                 }
                 if (player != null) {
                     serverLevel.gameEvent(player, GameEvent.ENTITY_PLACE, pos);
                 }
-                return BucketLibUtil.removeEntityType(itemStack, serverLevel, player, damage);
+                return BucketLibUtil.removeEntityType(itemStack, damage);
             }
         }
         return itemStack.copy();
@@ -305,7 +301,32 @@ public class UniversalBucketItem extends Item {
         if (this.canMilkEntities() && BucketLibUtil.isEmpty(itemStack)) {
             return WorldInteractionUtil.tryMilkLivingEntity(itemStack, entity, player, interactionHand);
         }
-        //feeding axolotl is done by mixins
+        //feed axolotl
+        if (entity instanceof Axolotl axolotl && BucketLibUtil.containsEntityType(itemStack)
+                && Arrays.stream(AxolotlAi.getTemptations().getItems()).anyMatch(
+                        stack -> stack.getItem() instanceof MobBucketItem mobBucketItem
+                                && BucketLibUtil.getFluid(itemStack) == Services.BUCKET.getFluidOfBucketItem(mobBucketItem)
+                                && BucketLibUtil.getEntityType(itemStack) == Services.BUCKET.getEntityTypeOfMobBucketItem(mobBucketItem)
+        )) {
+            int age = axolotl.getAge();
+            if (!axolotl.level().isClientSide && age == 0 && axolotl.canFallInLove()) {
+                if (!player.isCreative()) {
+                    player.setItemInHand(interactionHand, BucketLibUtil.removeEntityType(itemStack, BucketLibUtil.getFluid(itemStack) == Fluids.EMPTY));
+                }
+                axolotl.setInLove(player);
+                return InteractionResult.SUCCESS;
+            }
+            if (axolotl.isBaby()) {
+                if (!player.isCreative()) {
+                    player.setItemInHand(interactionHand, BucketLibUtil.removeEntityType(itemStack, BucketLibUtil.getFluid(itemStack) == Fluids.EMPTY));
+                }
+                axolotl.ageUp(AgeableMob.getSpeedUpSecondsWhenFeeding(-age), true);
+                return InteractionResult.sidedSuccess(axolotl.level().isClientSide);
+            }
+            if (axolotl.level().isClientSide) {
+                return InteractionResult.CONSUME;
+            }
+        }
         return super.interactLivingEntity(itemStack, player, entity, interactionHand);
     }
 
@@ -340,19 +361,19 @@ public class UniversalBucketItem extends Item {
         }
         if (!level.isClientSide) {
             Services.FLUID.curePotionEffects(player, new ItemStack(Items.MILK_BUCKET));
-            if (BucketLibUtil.notCreative(player)) {
-                return BucketLibUtil.removeMilk(itemStack, (ServerLevel) level, (player instanceof Player) ? (Player) player : null);
-            }
+        }
+        if (BucketLibUtil.notCreative(player)) {
+            return BucketLibUtil.removeMilk(itemStack);
         }
         return itemStack;
     }
 
     @Override
-    public int getUseDuration(@Nonnull ItemStack itemStack, @Nonnull LivingEntity livingEntity) {
+    public int getUseDuration(@Nonnull ItemStack itemStack) {
         if (BucketLibUtil.containsMilk(itemStack)) {
             return 32;
         }
-        return super.getUseDuration(itemStack, livingEntity);
+        return super.getUseDuration(itemStack);
     }
 
     @Override
@@ -382,14 +403,14 @@ public class UniversalBucketItem extends Item {
         ItemStack result = itemStack.copy();
         boolean damaged = BucketLibUtil.containsFluid(result); //damaging is done by fluid handler
         if (BucketLibUtil.containsBlock(result)) {
-            result = BucketLibUtil.removeBlock(result, null, null, !damaged); //TODO get ServerLevel!
+            result = BucketLibUtil.removeBlock(result, !damaged);
             damaged = true;
         }
         if (BucketLibUtil.containsEntityType(result)) {
-            result = BucketLibUtil.removeEntityType(result, null, null, !damaged); //TODO get ServerLevel!
+            result = BucketLibUtil.removeEntityType(result, !damaged);
         }
         if (BucketLibUtil.containsFluid(result) || BucketLibUtil.containsMilk(result)) {
-            result = BucketLibUtil.removeFluid(result, null, null); //TODO get ServerLevel!
+            result = BucketLibUtil.removeFluid(result);
         }
         return result;
     }
@@ -597,13 +618,6 @@ public class UniversalBucketItem extends Item {
             return this;
         }
 
-        /**
-         * Sets the default durability as a constant value.
-         * Don't forget to add your bucket to the item tag "minecraft:enchantable/durability" to enable the Unbreaking enchanting.
-         *
-         * @param durability default durability
-         * @return Properties object
-         */
         public Properties durability(int durability) {
             if (durability < 0) {
                 throw new RuntimeException("Unable to have a durability lower than 0.");
@@ -612,43 +626,20 @@ public class UniversalBucketItem extends Item {
             return this;
         }
 
-        /**
-         * Sets the default durability through a config option.
-         * Don't forget to add your bucket to the item tag "minecraft:enchantable/durability" to enable the Unbreaking enchanting.
-         *
-         * @param durabilityConfig supplier of the configuration value
-         * @return Properties object
-         */
         public Properties durability(Supplier<Integer> durabilityConfig) {
             this.durabilityConfig = durabilityConfig;
             return this;
         }
 
-        /**
-         * Sets a default color of the bucket and enables colored rendering.
-         * Don't forget to add your bucket to the item tag "minecraft:dyeable" to enable the dye recipe.
-         *
-         * @param defaultColor color value {@link FastColor.ARGB32}
-         * @return Properties object
-         */
         public Properties dyeable(int defaultColor) {
             this.dyeable = true;
             this.defaultColor = defaultColor;
             return this;
         }
 
-        /**
-         * Sets a default color of the bucket and enables colored rendering.
-         * Don't forget to add your bucket to the item tag "minecraft:dyeable" to enable the dye recipe.
-         *
-         * @param red red value (0-255)
-         * @param green green value (0-255)
-         * @param blue blue value (0-255)
-         * @return Properties object
-         */
         public Properties dyeable(int red, int green, int blue) {
             this.dyeable = true;
-            this.defaultColor = FastColor.ARGB32.color(red, green, blue);
+            this.defaultColor = ColorUtil.getColorFromRGB(red, green, blue);
             return this;
         }
 
