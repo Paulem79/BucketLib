@@ -3,7 +3,6 @@ package de.cech12.bucketlib.platform;
 import de.cech12.bucketlib.BucketLibMod;
 import de.cech12.bucketlib.platform.services.IPlatformHelper;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.level.Level;
@@ -34,7 +33,7 @@ public class FabricPlatformHelper implements IPlatformHelper {
     }
 
     @Override
-    public ResourceKey<CreativeModeTab> getToolsAndUtilitiesTab() {
+    public CreativeModeTab getToolsAndUtilitiesTab() {
         return CreativeModeTabs.TOOLS_AND_UTILITIES;
     }
 

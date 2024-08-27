@@ -21,6 +21,8 @@ import org.jetbrains.annotations.NotNull;
 import javax.annotation.Nonnull;
 import java.util.*;
 
+import static de.cech12.bucketlib.item.InventoryUtils.getItemsInInventory;
+
 public class BucketFillingShapedRecipe extends ShapedRecipe {
 
     private final CraftingBookCategory category;
@@ -83,7 +85,7 @@ public class BucketFillingShapedRecipe extends ShapedRecipe {
      */
     @Override
     public boolean matches(@Nonnull CraftingContainer inv, @Nonnull Level level) {
-        ItemStack bucket = getAffectedBucket(inv.getItems());
+        ItemStack bucket = getAffectedBucket(getItemsInInventory(inv));
         if (bucket == ItemStack.EMPTY) {
             return false;
         }
@@ -101,7 +103,7 @@ public class BucketFillingShapedRecipe extends ShapedRecipe {
     @Override
     @Nonnull
     public ItemStack assemble(@Nonnull CraftingContainer inv, @Nonnull RegistryAccess registryAccess) {
-        return getAssembledBucket(this.fillingType, this.fluid, this.block, this.entityType, inv.getItems());
+        return getAssembledBucket(this.fillingType, this.fluid, this.block, this.entityType, getItemsInInventory(inv));
     }
 
 

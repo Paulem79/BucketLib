@@ -55,7 +55,7 @@ public class BucketLibUtil {
             //player.broadcastBreakEvent(hand); //does not work here to play the sound, because the hand is empty until this event gotten
             if (!initialStack.isEmpty()) {
                 if (!player.isSilent()) {
-                    player.level().playLocalSound(player.getX(), player.getY(), player.getZ(), SoundEvents.ITEM_BREAK, player.getSoundSource(), 0.8F, 0.8F + player.level().getRandom().nextFloat() * 0.4F, false);
+                    player.getLevel().playLocalSound(player.getX(), player.getY(), player.getZ(), SoundEvents.ITEM_BREAK, player.getSoundSource(), 0.8F, 0.8F + player.getLevel().getRandom().nextFloat() * 0.4F, false);
                 }
                 ((LivingEntityAccessor) player).bucketlib_spawnItemParticles(initialStack, 5);
             }

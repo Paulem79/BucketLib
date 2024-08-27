@@ -66,7 +66,6 @@ subprojects {
                 "version": version,
                 "group": project.group, //Else we target the task's group.
                 "minecraft_version": minecraft_version,
-                "minecraft_version_range": minecraft_version_range,
                 "fabric_version": fabric_version,
                 "fabric_loader_version": fabric_loader_version,
                 "cloth_config_version": cloth_config_version,
@@ -79,12 +78,10 @@ subprojects {
                 "mod_issue_tracker": mod_issue_tracker,
                 "mod_description": project.description,
                 "jei_version": jei_version,
-                "jei_version_range": jei_version_range,
-                "rei_version": rei_version,
-                "rei_version_range": rei_version_range
+                "rei_version": rei_version
         ]
 
-        filesMatching(['pack.mcmeta', 'fabric.mod.json', 'META-INF/mods.toml', '*.mixins.json']) {
+        filesMatching(['pack.mcmeta', 'fabric.mod.json', '*.mixins.json']) {
             expand expandProps
         }
         inputs.properties(expandProps)

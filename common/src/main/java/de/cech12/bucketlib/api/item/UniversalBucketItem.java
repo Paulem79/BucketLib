@@ -309,7 +309,7 @@ public class UniversalBucketItem extends Item {
                                 && BucketLibUtil.getEntityType(itemStack) == Services.BUCKET.getEntityTypeOfMobBucketItem(mobBucketItem)
         )) {
             int age = axolotl.getAge();
-            if (!axolotl.level().isClientSide && age == 0 && axolotl.canFallInLove()) {
+            if (!axolotl.level.isClientSide && age == 0 && axolotl.canFallInLove()) {
                 if (!player.isCreative()) {
                     player.setItemInHand(interactionHand, BucketLibUtil.removeEntityType(itemStack, BucketLibUtil.getFluid(itemStack) == Fluids.EMPTY));
                 }
@@ -321,9 +321,9 @@ public class UniversalBucketItem extends Item {
                     player.setItemInHand(interactionHand, BucketLibUtil.removeEntityType(itemStack, BucketLibUtil.getFluid(itemStack) == Fluids.EMPTY));
                 }
                 axolotl.ageUp(AgeableMob.getSpeedUpSecondsWhenFeeding(-age), true);
-                return InteractionResult.sidedSuccess(axolotl.level().isClientSide);
+                return InteractionResult.sidedSuccess(axolotl.level.isClientSide);
             }
-            if (axolotl.level().isClientSide) {
+            if (axolotl.level.isClientSide) {
                 return InteractionResult.CONSUME;
             }
         }
@@ -340,7 +340,7 @@ public class UniversalBucketItem extends Item {
             entity.playSound(entity.getPickupSound(), 1.0F, 1.0F);
             ItemStack filledItemStack = BucketLibUtil.addEntityType(itemStack, entity.getType());
             entity.saveToBucketTag(filledItemStack);
-            Level level = entity.level();
+            Level level = entity.level;
             ItemStack handItemStack = ItemUtils.createFilledResult(itemStack, player, filledItemStack, false);
             player.setItemInHand(interactionHand, handItemStack);
             if (!level.isClientSide) {
@@ -448,7 +448,7 @@ public class UniversalBucketItem extends Item {
         return defaultList != null && defaultList.contains(element);
     }
 
-    public ResourceKey<CreativeModeTab> getCreativeTab() {
+    public CreativeModeTab getCreativeTab() {
         if (this.properties.tab == null) {
             this.properties.tab = Services.PLATFORM.getToolsAndUtilitiesTab();
         }
@@ -549,7 +549,7 @@ public class UniversalBucketItem extends Item {
 
     public static class Properties {
 
-        ResourceKey<CreativeModeTab> tab = null;
+        CreativeModeTab tab = null;
         int maxStackSize = 16;
 
         int durability = 0;
@@ -605,7 +605,7 @@ public class UniversalBucketItem extends Item {
         List<Block> allowedBlocks = null;
         TagKey<Block> allowedBlocksTag = null;
 
-        public Properties tab(ResourceKey<CreativeModeTab> tab) {
+        public Properties tab(CreativeModeTab tab) {
             this.tab = tab;
             return this;
         }
