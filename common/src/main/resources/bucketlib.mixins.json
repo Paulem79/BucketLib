@@ -1,6 +1,6 @@
 {
   "required": true,
-  "package": "de.cech12.bucketlib.mixin",
+  "package": "com.github.cech12.BucketLib.mixin",
   "compatibilityLevel": "JAVA_17",
   "refmap": "${mod_id}.refmap.json",
   "mixins": [
