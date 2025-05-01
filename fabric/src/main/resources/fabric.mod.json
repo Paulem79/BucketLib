@@ -17,19 +17,19 @@
   "environment": "*",
   "entrypoints": {
     "main": [
-      "de.cech12.bucketlib.BucketLibMod"
+      "com.github.cech12.BucketLib.BucketLibMod"
     ],
     "client": [
-      "de.cech12.bucketlib.client.BucketLibClientMod"
+      "com.github.cech12.BucketLib.client.BucketLibClientMod"
     ],
     "modmenu": [
-      "de.cech12.bucketlib.compat.ModMenuCompat"
+      "com.github.cech12.BucketLib.compat.ModMenuCompat"
     ],
     "jei_mod_plugin": [
-      "de.cech12.bucketlib.jei.ModJEIPlugin"
+      "com.github.cech12.BucketLib.jei.ModJEIPlugin"
     ],
     "rei_client": [
-      "de.cech12.bucketlib.rei.BucketLibReiClientPlugin"
+      "com.github.cech12.BucketLib.rei.BucketLibReiClientPlugin"
     ]
   },
   "accessWidener" : "${mod_id}.accesswidener",

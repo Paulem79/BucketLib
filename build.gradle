@@ -112,7 +112,12 @@ subprojects {
         }
         repositories {
             maven {
-                url "file://" + System.getenv("local_maven")
+                name = "paulem"
+                url = uri("https://maven.paulem.ovh/releases")
+                credentials(PasswordCredentials)
+                authentication {
+                    basic(BasicAuthentication)
+                }
             }
         }
     }

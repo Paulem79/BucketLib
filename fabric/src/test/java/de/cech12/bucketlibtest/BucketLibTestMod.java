@@ -1,7 +1,7 @@
 package de.cech12.bucketlibtest;
 
-import de.cech12.bucketlib.api.BucketLibApi;
-import de.cech12.bucketlib.api.item.UniversalBucketItem;
+import com.github.cech12.BucketLib.api.BucketLibApi;
+import com.github.cech12.BucketLib.api.item.UniversalBucketItem;
 import net.fabricmc.api.ModInitializer;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
